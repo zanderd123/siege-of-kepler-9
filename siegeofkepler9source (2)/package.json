@@ -1,0 +1,16 @@
+{
+  "name": "siege-of-kepler-9",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A 3D real-time space-battle strategy game — Total War in orbit.",
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes http-server -p 8080 -c-1 -o",
+    "build": "node build.mjs",
+    "serve": "python3 -m http.server 8080"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0",
+    "three": "^0.169.0"
+  }
+}

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Siege of Kepler-9 — Space Fleet Command</title>
+  <link rel="icon" href="./favicon.ico" sizes="16x16" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="selection-box"></div>
+
+  <!-- ==================== LOADING ==================== -->
+  <div id="loading" class="screen">
+    <div class="loading-inner">
+      <div class="logo-mark"></div>
+      <h1>SIEGE OF KEPLER-9</h1>
+      <p class="loading-status">Initialising fleet systems…</p>
+    </div>
+  </div>
+
+  <!-- ==================== SETUP / FLEET BUILDER ==================== -->
+  <div id="setup" class="screen hidden">
+    <div class="setup-shell">
+      <header class="setup-header">
+        <div>
+          <h1>SIEGE OF KEPLER-9</h1>
+          <p class="tagline">Total war, in orbit. Build a fleet. Break a world — or hold it.</p>
+        </div>
+        <div class="budget-block">
+          <label for="budget">FLEET BUDGET</label>
+          <div class="budget-row">
+            <input type="range" id="budget" min="400" max="4000" step="50" value="1000" />
+            <output id="budget-value">1000</output>
+          </div>
+          <span class="budget-hint" id="budget-hint">Skirmish — fast, readable battles</span>
+        </div>
+      </header>
+
+      <section class="side-picker">
+        <button class="side-card" data-side="attack">
+          <span class="side-tag">OFFENSIVE</span>
+          <h2>ATTACK</h2>
+          <p>Break the orbital cordon and burn every emplacement off the surface.
+             You have no ground assets — everything you field has to fly.</p>
+          <span class="side-win">WIN: destroy the defending fleet <em>and</em> all ground support</span>
+        </button>
+        <button class="side-card" data-side="defense">
+          <span class="side-tag">DEFENSIVE</span>
+          <h2>DEFEND</h2>
+          <p>Hold the high orbit. You alone may buy ground support — turrets,
+             walkers and repair rigs dug in on the surface below.</p>
+          <span class="side-win">WIN: destroy every attacking ship</span>
+        </button>
+      </section>
+
+      <div class="builder hidden" id="builder">
+        <div class="builder-main">
+          <div class="builder-head">
+            <h3>FLEET COMPOSITION</h3>
+            <div class="spend">
+              <span id="spent">0</span> / <span id="budget-total">1000</span> PTS
+              <div class="spend-bar"><i id="spend-fill"></i></div>
+            </div>
+          </div>
+          <div class="cat-label" id="ships-label">SHIPS</div>
+          <div class="card-grid" id="ship-cards"></div>
+          <div class="cat-label hidden" id="ground-label">
+            GROUND SUPPORT <em>— defenders only</em>
+          </div>
+          <div class="card-grid hidden" id="ground-cards"></div>
+        </div>
+
+        <aside class="builder-side">
+          <h3>YOUR FLEET</h3>
+          <div id="roster-list" class="roster-list">
+            <p class="empty">No units purchased.</p>
+          </div>
+          <div class="roster-stats" id="roster-stats"></div>
+          <div class="setup-actions">
+            <button id="auto-fill" class="btn ghost">Auto-Build</button>
+            <button id="clear-fleet" class="btn ghost">Clear</button>
+          </div>
+          <button id="launch" class="btn primary" disabled>LAUNCH BATTLE</button>
+          <p class="hint-small">Enemy commander spends the same budget.</p>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== IN-GAME HUD ==================== -->
+  <div id="hud" class="hidden">
+    <!-- top: fleet strength -->
+    <div class="top-bar">
+      <div class="force force-you">
+        <span class="force-name" id="you-name">YOUR FLEET</span>
+        <div class="force-bar"><i id="you-fill"></i></div>
+        <span class="force-count" id="you-count">0</span>
+      </div>
+      <div class="battle-clock">
+        <span id="clock">0:00</span>
+        <span class="clock-label" id="speed-label">1x</span>
+      </div>
+      <div class="force force-enemy">
+        <span class="force-count" id="enemy-count">0</span>
+        <div class="force-bar reverse"><i id="enemy-fill"></i></div>
+        <span class="force-name" id="enemy-name">ENEMY FLEET</span>
+      </div>
+    </div>
+
+    <!-- left: selection detail -->
+    <div class="panel selection-panel hidden" id="sel-panel">
+      <div class="sel-head">
+        <h4 id="sel-title">—</h4>
+        <span id="sel-sub"></span>
+      </div>
+      <div class="sel-stats" id="sel-stats"></div>
+      <div class="sel-ability" id="sel-ability"></div>
+      <div class="sel-toggles">
+        <button class="chip" id="toggle-hold" title="Hold Position (H)">HOLD</button>
+        <button class="chip" id="toggle-autocast" title="Toggle Autocast (T)">AUTOCAST</button>
+      </div>
+    </div>
+
+    <!-- hover tooltip -->
+    <div class="hover-card hidden" id="hover-card"></div>
+
+    <!-- bottom: time controls -->
+    <div class="bottom-bar">
+      <button class="ctrl" id="btn-pause" title="Pause / Resume (Space)">
+        <svg viewBox="0 0 24 24" class="ic-pause"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>
+        <svg viewBox="0 0 24 24" class="ic-play hidden"><path d="M8 5l11 7-11 7z"/></svg>
+        <span id="pause-label">PAUSE</span>
+      </button>
+
+      <div class="speed-meter">
+        <span class="meter-label">SPEED</span>
+        <div class="ticks" id="speed-ticks"></div>
+        <input type="range" id="speed" min="0" max="4" step="1" value="1" />
+        <span class="meter-value" id="speed-value">1x</span>
+      </div>
+
+      <button class="ctrl" id="btn-reset" title="Restart this battle">
+        <svg viewBox="0 0 24 24"><path d="M12 5V2L8 6l4 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z"/></svg>
+        <span>RESET</span>
+      </button>
+      <button class="ctrl subtle" id="btn-newfleet" title="Back to fleet builder">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h10v2H4z"/></svg>
+        <span>NEW FLEET</span>
+      </button>
+    </div>
+
+    <div class="help-tab" id="help-tab">
+      <span>CONTROLS</span>
+      <div class="help-body">
+        <dl>
+          <dt>Left drag</dt><dd>Box-select your squadrons</dd>
+          <dt>Right click</dt><dd>Move order · on an enemy, attack order</dd>
+          <dt>Right <em>drag</em> ↕</dt><dd>Set the destination's <strong>altitude</strong> — X/Z lock on press</dd>
+          <dt>Middle drag</dt><dd>Orbit camera · Shift+middle to pan</dd>
+          <dt>W A S D</dt><dd>Pan · R / V raise &amp; lower · wheel to zoom</dd>
+          <dt>Q</dt><dd>Fire selected unit's ability</dd>
+          <dt>H · T</dt><dd>Hold position · toggle autocast</dd>
+          <dt>E · F</dt><dd>Select all · focus camera on selection</dd>
+          <dt>Ctrl+1-9 · 1-9</dt><dd>Assign / recall control group</dd>
+          <dt>Space · [ ]</dt><dd>Pause · slow down / speed up</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== END SCREEN ==================== -->
+  <div id="endscreen" class="screen hidden">
+    <div class="end-inner">
+      <h1 id="end-title">VICTORY</h1>
+      <p id="end-sub"></p>
+      <div class="end-stats" id="end-stats"></div>
+      <div class="end-actions">
+        <button class="btn primary" id="end-again">REMATCH</button>
+        <button class="btn ghost" id="end-new">NEW FLEET</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
